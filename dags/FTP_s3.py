@@ -18,12 +18,12 @@ from sftp_plugin import SFTPToS3Operator
 
 start_time = time.time()
 SSH_CONN_ID = 'ssh_default'
-FILENAME = 'rpd_blueridge_palmerton_1_0_20200312.gz'
-FILEPATH = '/shentel/harvest/angoss/'
+FILENAME = ''
+FILEPATH = ''
 SFTP_PATH = '/{0}/{1}'.format(FILEPATH, FILENAME)
 
 S3_CONN_ID = 's3_conn_name'
-S3_BUCKET = 'rovi2.0'                                                                                                                                                       S3_KEY = 'AirflowCheck/'
+S3_BUCKET = ''                                                                                                                                                       S3_KEY = 'AirflowCheck/'
 
 today = "{{ ds }}"
 
@@ -60,7 +60,6 @@ def check_for_file_py(**kwargs):
        #     return False
 
 with dag:
-        #files = PythonOperator(task_id='check_for_file',python_callable=check_for_file_py,templates_dict={'filename': FILENAME},op_kwargs={"path": FILEPATH,"sftp_conn_id": SSH_CONN_ID},provide_context=True)
         dummy = DummyOperator(task_id = 'Start')
         #ftp_sense_task = FTPSSensor(task_id='FTP_Sensor_Task',path = FILEPATH,ftp_conn_id = 'fs_default',dag=dag)
         ftp_sense_task =SFTPSensor(task_id='FTP_Sensor_Task',filepath = FILEPATH,filename = FILENAME,sftp_conn_id=SSH_CONN_ID,dag=dag)
