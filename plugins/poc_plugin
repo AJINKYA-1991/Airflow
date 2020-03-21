@@ -1,0 +1,89 @@
+import copy
+import logging
+import os
+import re
+import os.path
+
+import ftplib
+import pysftp
+from airflow.contrib.hooks.emr_hook import EmrHook
+from airflow.exceptions import AirflowException
+from airflow.hooks.S3_hook import S3Hook
+from airflow.hooks.base_hook import BaseHook
+from airflow.hooks.mysql_hook import MySqlHook
+from airflow.models import BaseOperator
+from airflow.operators.sensors import BaseSensorOperator
+from airflow.plugins_manager import AirflowPlugin
+from airflow.models import Variable
+from airflow.contrib.hooks.ftp_hook import FTPHook, FTPSHook
+from airflow.utils.decorators import apply_defaults
+
+class TVDHooks(BaseHook):
+        #template_fields = ('input_dict',)
+        def __init__(self, input_dict, *args, **kwargs):
+            self.input_dict = input_dict
+
+        def get_batch_load_time(self, s3_conn_name, s3_bucket_name, s3_base_path, data_date):
+            s3_hook = S3Hook(s3_conn_name)
+            base_list = s3_hook.list_keys(bucket_name=s3_bucket_name, prefix=s3_base_path, delimiter='/')
+            print(base_list)
+            logger.info("matching file names are: " + ' '.join(base_list))
+
+            data_date_underscore = str(data_date).replace("-","_")
+            matching_blts = []
+            for curr_key in base_list:
+                if data_date_underscore in curr_key:
+                    fields = re.split('_|\.', curr_key)
+                    for field in fields:
+                        logger.info(field)
+                        print(field)
+                        if field.isdigit() and len(field) > 5:
+                            logger.info("adding blt to list: " + field)
+                            matching_blts.append(int(field))
+            return max(matching_blts)
+
+class GetBltFromFile(BaseOperator):
+    template_fields = ["data_date"]
+    template_ext = ()
+    ui_color = '#f9c915'
+    def __init__(self,s3_conn_id='s3_conn_name',src_s3_bucket=None,src_s3_path=None,data_date=None, *args, **kwargs):
+        super(GetBltFromFile, self).__init__(*args, **kwargs)
+        self.s3_conn_id = s3_conn_id
+        self.src_s3_bucket = src_s3_bucket
+        self.src_s3_path = src_s3_path
+        self.data_date = data_date
+    def execute(self, context):
+        tvd_hook = TVDHooks(input_dict=None)
+        base_prefix = self.src_s3_path + self.data_date
+        logging.info("base_prefix " + base_prefix)
+        blt = tvd_hook.get_batch_load_time(s3_conn_name=self.s3_conn_id, s3_bucket_name=self.src_s3_bucket, s3_base_path=base_prefix, data_date=self.data_date)
+        if blt is None:
+            raise AirflowException('No matching batch_load_time found for given data_date')
+        else:
+            return str(blt)
+
+
+
+
+class SFTPSensor(BaseSensorOperator):
+        @apply_defaults
+        def __init__(self, filepath,filename, sftp_conn_id='ssh_default', *args, **kwargs):
+                super(SFTPSensor, self).__init__(*args, **kwargs)
+                self.filepath = filepath
+                self.filename = filename
+                self.sftp_conn_id = sftp_conn_id
+                #self.hook = SFTPHook(sftp_conn_id)
+		
+		def poke(self, context):
+                ssh_hook = SSHHook(self.sftp_conn_id)
+                sftp_client = ssh_hook.get_conn().open_sftp()
+                ftp_files = sftp_client.listdir(self.filepath)
+                logging.info('Filename: ' + str(self.filepath))
+                logging.info('Filename: ' + str(self.filename))
+                if self.filename in ftp_files:
+                    log.info("File found :, sensor finishing")
+                    return True
+                else:
+                    log.info("File Not found:: sensor will retry.")
+                    return False
+
