@@ -18,7 +18,7 @@ from airflow.models import Variable
 from airflow.contrib.hooks.ftp_hook import FTPHook, FTPSHook
 from airflow.utils.decorators import apply_defaults
 
-class TVDHooks(BaseHook):
+class MyHooks(BaseHook):
         #template_fields = ('input_dict',)
         def __init__(self, input_dict, *args, **kwargs):
             self.input_dict = input_dict
@@ -87,3 +87,12 @@ class SFTPSensor(BaseSensorOperator):
                     log.info("File Not found:: sensor will retry.")
                     return False
 
+class MyPluginsr(AirflowPlugin):
+        name = "MyPlugins"
+        hooks = [MyHooks]
+        operators = [GetBltFromFile,FTPSSensor,SFTPSensor]
+        executors = []
+        macros = []
+        admin_views = []
+        flask_blueprints = []
+        menu_links = []
