@@ -29,14 +29,14 @@ def file_move_py(templates_dict,**kwargs):
     filecount = kwargs.get('file_count',None)
     filecount = int(filecount)
     filenameprefix = templates_dict['filename_prefix']
-    tvd_hook = TVDHooks(templates_dict)
+    my_hook = MyHooks(templates_dict)
     datet = str(data_date)
     datadate = datetime.strptime(datet,"%Y-%m-%d").date().strftime('%Y%m%d')
-    filelist = tvd_hook.get_ftp_details(ftpath,filenameprefix,filecount,datadate,sshconn)
+    filelist = my_hook.get_ftp_details(ftpath,filenameprefix,filecount,datadate,sshconn)
     print(str(filelist))
     if filecount == 1:
 	filename = str(filelist[0])
-        tvd_hook.transfer_file_from_ftp_to_s3(sshconn,ftpath,filename,s3_bucket,s3key,s3conn)
+        my_hook.transfer_file_from_ftp_to_s3(sshconn,ftpath,filename,s3_bucket,s3key,s3conn)
     elif(jobtype == 'hhdetails' and len(filelist) == 0):
         dttime = datetime.strptime(datadate,"%Y%m%d").date()
         print(dttime.weekday())
@@ -45,7 +45,7 @@ def file_move_py(templates_dict,**kwargs):
     else:
         for i in range(0,len(filelist)):
             filename = str(filelist[i])
-            tvd_hook.transfer_file_from_ftp_to_s3(sshconn,ftpath,filename,s3_bucket,s3key,s3conn)
+            my_hook.transfer_file_from_ftp_to_s3(sshconn,ftpath,filename,s3_bucket,s3key,s3conn)
 
 def create_subdag(main_dag, subdag_id,jobtype,dsid):
     subdag = DAG('{0}.{1}'.format(main_dag.dag_id, subdag_id),default_args=default_args)
