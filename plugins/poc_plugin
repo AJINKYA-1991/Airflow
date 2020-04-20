@@ -41,6 +41,33 @@ class MyHooks(BaseHook):
                             logger.info("adding blt to list: " + field)
                             matching_blts.append(int(field))
             return max(matching_blts)
+	 def get_emr_master_ip(self, job_flow_id, emr_conn_id):
+                emr_hook = EmrHook(emr_conn_id,region_name = 'us-east-1')
+                emr_client = emr_hook.get_conn()
+                emr_master_ip = None
+                #####################
+                #details
+                hook = BaseHook.get_connection(emr_conn_id)
+                extra = hook.extra_dejson
+                key_id = extra.get('aws_access_key_id')
+                print(key_id)
+                secret_key = extra.get('aws_secret_access_key')
+                region = extra.get('region_name')
+                print(region)
+                #####################
+                instancesList = emr_client.list_instances(ClusterId=job_flow_id)["Instances"]
+                print(instancesList)
+                desc_cluster = emr_client.describe_cluster(ClusterId=job_flow_id)
+                master_pulic_dns_name = desc_cluster["Cluster"]["MasterPublicDnsName"]
+
+                for currInstance in instancesList:
+                        if (currInstance["PrivateDnsName"] == master_pulic_dns_name):
+                                emr_master_ip = currInstance["PrivateIpAddress"]
+
+                if emr_master_ip is None:
+                        raise AirflowException('Unable to get master node IP for %s JobFlow' % job_flow_id)
+                else:
+                        return emr_master_ip   
 
 class GetBltFromFile(BaseOperator):
     template_fields = ["data_date"]
@@ -86,11 +113,31 @@ class SFTPSensor(BaseSensorOperator):
                 else:
                     log.info("File Not found:: sensor will retry.")
                     return False
+class GetEMRMasterIP(BaseOperator):
+    """
+    Get master IP for given EMR jobflow id
+    """
+    template_fields = ["job_flow_id"]
+    template_ext = ()
+    ui_color = '#f9c915'
+
+    def __init__(self,
+                 job_flow_id,
+                 emr_conn_id,
+                 *args, **kwargs):
+        super(GetEMRMasterIP, self).__init__(*args, **kwargs)
+        self.job_flow_id = job_flow_id
+        self.emr_conn_id = emr_conn_id
+
+    def execute(self, context):
+        tvd_hook = TVDHooks(input_dict=None)
+        emr_master_ip = MyHooks.get_emr_master_ip(job_flow_id=self.job_flow_id, emr_conn_id=self.emr_conn_id)
+        return emr_master_ip
 
 class MyPluginsr(AirflowPlugin):
         name = "MyPlugins"
         hooks = [MyHooks]
-        operators = [GetBltFromFile,FTPSSensor,SFTPSensor]
+        operators = [GetBltFromFile,FTPSSensor,SFTPSensor,GetEMRMasterIP]
         executors = []
         macros = []
         admin_views = []
